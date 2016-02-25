@@ -1,0 +1,131 @@
+#calling libraries
+#this code depends on the R instance having Oauth for the twitter api if you are searching twitter, if you are calling a .csv this should be all the code you need
+library(plyr)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+
+#if using twitter API, use the following to determine your search parameters
+#searchterm = "Samurai Jack"
+#number = "100"
+
+#this first block is just right now for a kind of debugging, in the actual analysis I will use the other method of defining stack by the collected data
+#stack<- twListToDF(searchTwitter(searchterm, n=number))
+stack<- (read.csv(file="canadamain.csv"))
+
+#getting data into a useable format and deleting duplicates
+stack<- rbind(stack, df)
+stack<- subset(stack, !duplicated(stack$text))
+#write.csv(twListToDF(stack), file="stack1.csv")
+
+#climate scoring function
+score.climate = function(sentences, climate.words, .progress='none')
+{
+    require(plyr)
+    require(stringr)
+     
+    # we got a vector of sentences. plyr will handle a list
+    # or a vector as an "l" for us
+    # we want a simple array ("a") of scores back, so we use 
+    # "l" + "a" + "ply" = "laply":
+    scores = laply(sentences, function(sentence, climate.words) {
+         
+        # clean up sentences with R's regex-driven global substitute, gsub():
+        sentence = gsub('[[:punct:]]', '', sentence)
+        sentence = gsub('[[:cntrl:]]', '', sentence)
+        sentence = gsub('\\d+', '', sentence)
+        # and convert to lower case:
+        sentence = tolower(sentence)
+ 
+        # split into words. str_split is in the stringr package
+        word.list = str_split(sentence, '\\s+')
+        # sometimes a list() is one level of hierarchy too much
+        words = unlist(word.list)
+ 
+        # compare our words to the dictionaries of positive & negative terms
+        climate.matches = match(words, climate.words)
+     
+        # match() returns the position of the matched term or NA
+        # we just want a TRUE/FALSE:
+        climate.matches = !is.na(climate.matches)
+ 
+        # and conveniently enough, TRUE/FALSE will be treated as 1/0 by sum():
+        score = sum(climate.matches)
+ 
+        return(score)
+    }, climate.words, .progress=.progress )
+ 
+    scores.df = data.frame(score=scores, text=sentences)
+    return(scores.df)
+}
+ 
+#climate word list calling and defining 
+climate = readLines("climatecare.txt")
+climate.words <- c(climate)
+
+
+#sentiment scoring function
+score.sentiment <- function(sentences, pos.words, neg.words, .progress='none')
+ {
+ 	require(plyr)
+ 	require(stringr)
+ 		scores <- laply(sentences, function(sentence, pos.words, neg.words){
+ 		sentence <- gsub('[[:punct:]]', "", sentence)
+ 		sentence <- gsub('[[:cntrl:]]', "", sentence)
+ 		sentence <- gsub('\\d+', "", sentence)
+		sentence <- tolower(sentence)
+ 		word.list <- str_split(sentence, '\\s+')
+		words <- unlist(word.list)
+ 		pos.matches <- match(words, pos.words)
+ 		neg.matches <- match(words, neg.words)
+ 		pos.matches <- !is.na(pos.matches)
+ 		neg.matches <- !is.na(neg.matches)
+ 		score <- sum(pos.matches) - sum(neg.matches)
+ 	return(score)
+ 	}, pos.words, neg.words, .progress=.progress)
+ 	scores.df <- data.frame(score=scores, text=sentences)
+ 	return(scores.df)
+ }
+
+#sentiment word list calling and defining 
+pos = readLines("positive_words.txt")
+neg = readLines("negative_words.txt")
+pos.words <- c(pos, 'upgrade')
+neg.words <- c(neg, 'wtf', 'wait', 'waiting', 'epicfail')
+
+#some transformations into a good format
+Dataset <- stack
+Dataset$text <- as.factor(stack$text)
+sentiscores <- score.sentiment(Dataset$text, pos.words, neg.words, .progress='text')
+climatescores <- score.climate(Dataset$text, climate.words, .progress='text')
+#write.csv(climatescores, file="scores.csv")
+
+#generating useful statistics
+sentistat <- sentiscores
+climatestat <- climatescores
+sentistat$created <- stack$created
+climatestat$created <- stack$created
+sentistat$created <- as.Date(sentistat$created)
+climatestat$created <- as.Date(climatestat$created)
+sentistat <- mutate(sentistat, sentitweet=(sentistat$score ))
+climatestat <- mutate(climatestat, climatetweet=(climatestat$score))
+
+#creating data frames for each factor
+sentiby.tweet <- group_by(sentistat, sentitweet, created)
+sentiby.tweet <- summarise(sentiby.tweet, sentinumber=n())
+climateby.tweet <- group_by(climatestat, climatetweet, created)
+climateby.tweet <- summarise(climateby.tweet, climatenumber=n())
+sentiby.tweet
+climateby.tweet
+
+#merging data frames
+stat <- merge(sentistat, climatestat, by="text")
+
+#formatting merged data frame into final
+by.tweet <- group_by(stat, sentitweet, climatetweet, created.x, created.y)
+by.tweet <- summarise(by.tweet, number=n())
+by.tweet$searchterm <- c("searchterm")
+
+#basically saving as a spreadsheet
+write.csv(by.tweet, file="(searchterm()climatecaresentibytweet.csv")
+
