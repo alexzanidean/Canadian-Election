@@ -6,14 +6,13 @@ library(plotly)
 library(ggvis)
 library(manipulate)
 library(shiny)
-library("RColorBrewer", lib.loc="/usr/local/lib/R/site-library")
 shinyUI(fluidPage(theme= "bootstrap.css",
                   titlePanel("Topic Score by Sentiment Score for Tweets during the 2015 Canadian Election"),
                  
                   sidebarPanel(
-                    checkboxGroupInput("searchtermcheck", "Term Searched on Twitter",
-                                       c("Harper", "Trudeau", "Mulcair", "ElizabethMay", "Conservative","Liberal", "NDP", "GreenParty", "Canada", 
-                                         "Canadian Politics", "cdnpoli", "oct19", "elxn42", "elxn2015"),
+                    radioButtons("searchtermcheck", "Term Searched on Twitter (Select one)",
+                                       c("Harper", "Trudeau", "Mulcair", "ElizabethMay", "Conservative","Liberal", "NDP", "GreenParty", 
+                                         "Canada", "CanadianPolitics", "cdnpoli", "oct19", "elxn42", "elxn2015"),
                                        selected = "Harper"),
                     
                     dateInput('date',
@@ -25,9 +24,17 @@ shinyUI(fluidPage(theme= "bootstrap.css",
                     )
                   ),
                   mainPanel(
-                    plotlyOutput("plott1"),
-                    plotlyOutput("plott2"),
-                    plotlyOutput("plott3")
+                    tabsetPanel(
+                      tabPanel("Over Time",
+                               plotOutput("plott4"),
+                               plotOutput("plott5"),
+                               plotOutput("plott6")),
+                      tabPanel("In Detail",
+                               plotlyOutput("plott1"),
+                               plotlyOutput("plott2"),
+                               plotlyOutput("plott3"))
+                     
+                  )
                   )
         )
 )
